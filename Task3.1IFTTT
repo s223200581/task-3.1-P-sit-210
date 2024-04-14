@@ -1,0 +1,69 @@
+#include <WiFiNINA.h>
+#include <ArtronShop_BH1750.h>
+
+// WiFi network details
+char wifiSSID[] = "Kaushik";
+char wifiPassword[] = "123456789";
+
+// Create an instance of the Wifi client
+WiFiClient client;
+bool detection = false;
+
+// IFTTT Webhooks details
+char hostName[] = "maker.ifttt.com";
+
+String pathName = "https://maker.ifttt.com/trigger/Detect Sunlight/json/with/key/6ouLHdKHmC9HBTAL7bADG";
+
+void setup() {
+  // Start WiFi connection using the provided SSID and password
+  WiFi.begin(wifiSSID, wifiPassword);
+  Serial.begin(9600);
+  
+  // Check if the WiFi connection was successful and print the result to the Serial Monitor
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Attempting to connect to WiFi...");
+    delay(500);
+  }
+  
+  Serial.println("Connected to WiFi");
+}
+
+
+void loop() {
+  // Read the light intensity from the analog pin A0
+  int lightIntensity = analogRead(A0);
+
+  // Map the light intensity to a percentage (0-200)
+  int scaledIntensity = map(lightIntensity, 0, 1023, 0, 200);
+
+  // Based on the mapped intensity, send an appropriate message to IFTTT
+  if (scaledIntensity < 30 && detection) {
+    IFTTTGmail("Plant is in very low light please place the plant light in good place", scaledIntensity);
+    detection = false;
+  } 
+  if (scaledIntensity >= 50 && !detection) {
+    IFTTTGmail("Plant is in high light please place the plant light in good place", scaledIntensity);
+    detection = true;
+  }
+
+  delay(10000); // Delay for a few seconds before taking the next reading
+}
+
+// Function to send the light intensity information to IFTTT
+void IFTTTGmail(String message, int intensity) {
+  // Construct the query string for the GET request
+  String queryString = "?value1=" + message + "&value2=" + String(intensity) + " percentage";
+
+  // Attempt to connect to IFTTT Webhooks
+  if (client.connect(hostName, 80)) {
+    client.print("GET " + pathName + queryString + " HTTP/1.1\r\n");
+    client.print("Host: " + String(hostName) + "\r\n");
+    client.print("Connection: close\r\n\r\n");
+
+    // Print the message and intensity to the Serial Monitor for debugging
+    Serial.println("Message: " + message + ", Intensity: " + String(intensity) + "%");
+  } else {
+    // Print an error message if the connection to IFTTT failed
+    Serial.println("Failed to connect to server");
+  }
+}
